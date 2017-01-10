@@ -705,7 +705,7 @@ public class KotlinTypeMapper {
             JvmMethodSignature method = mapSignatureSkipGeneric(descriptor);
             Type owner = mapClass(((ClassConstructorDescriptor) descriptor).getContainingDeclaration());
             String defaultImplDesc = mapDefaultMethod(descriptor, OwnerKind.IMPLEMENTATION).getDescriptor();
-            return new CallableMethod(owner, owner, defaultImplDesc, method, INVOKESPECIAL, null, null, null);
+            return new CallableMethod(owner, owner, defaultImplDesc, method, INVOKESPECIAL, null, null, null, false);
         }
 
         if (descriptor instanceof LocalVariableAccessorDescriptor) {
@@ -725,6 +725,7 @@ public class KotlinTypeMapper {
         FunctionDescriptor baseMethodDescriptor;
         int invokeOpcode;
         Type thisClass;
+        boolean isInterfaceMember = false;
 
         if (functionParent instanceof ClassDescriptor) {
             FunctionDescriptor declarationFunctionDescriptor = findAnyDeclaration(functionDescriptor);
@@ -749,6 +750,7 @@ public class KotlinTypeMapper {
                     invokeOpcode = INVOKESPECIAL;
                     signature = mapSignatureSkipGeneric(functionDescriptor);
                     owner = thisClass;
+                    isInterfaceMember = true;
                 }
                 else {
                     invokeOpcode = INVOKESTATIC;
@@ -763,13 +765,16 @@ public class KotlinTypeMapper {
                                              CodegenUtilKt.isJvmStaticInObjectOrClass(functionDescriptor);
                 if (isStaticInvocation) {
                     invokeOpcode = INVOKESTATIC;
+                    isInterfaceMember = currentIsInterface && currentOwner instanceof JavaClassDescriptor;
                 }
                 else if (isInterface) {
                     invokeOpcode = INVOKEINTERFACE;
+                    isInterfaceMember = true;
                 }
                 else {
                     boolean isPrivateFunInvocation = Visibilities.isPrivate(functionDescriptor.getVisibility());
                     invokeOpcode = superCall || isPrivateFunInvocation ? INVOKESPECIAL : INVOKEVIRTUAL;
+                    isInterfaceMember = superCall && currentIsInterface;
                 }
 
                 FunctionDescriptor overriddenSpecialBuiltinFunction =
@@ -780,6 +785,7 @@ public class KotlinTypeMapper {
 
                 signature = mapSignatureSkipGeneric(functionToCall);
 
+                /*TODO: isInterfaceMember?*/
                 ClassDescriptor receiver = (currentIsInterface && !originalIsInterface) || currentOwner instanceof FunctionClassDescriptor
                                            ? declarationOwner
                                            : currentOwner;
@@ -821,7 +827,8 @@ public class KotlinTypeMapper {
 
         return new CallableMethod(
                 owner, ownerForDefaultImpl, defaultImplDesc, signature, invokeOpcode,
-                thisClass, receiverParameterType, calleeType);
+                thisClass, receiverParameterType, calleeType,
+                isJvm8Target ? isInterfaceMember : invokeOpcode == INVOKEINTERFACE );
     }
 
     private boolean isJvm8Interface(@NotNull ClassDescriptor ownerForDefault) {
