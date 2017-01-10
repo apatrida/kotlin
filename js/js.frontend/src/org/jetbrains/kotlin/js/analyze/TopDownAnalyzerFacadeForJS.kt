@@ -32,9 +32,14 @@ import org.jetbrains.kotlin.resolve.*
 import org.jetbrains.kotlin.resolve.lazy.declarations.FileBasedDeclarationProviderFactory
 
 object TopDownAnalyzerFacadeForJS {
+
+    private val platformJS = MultiTargetPlatform.Specific("JS")
+
     @JvmStatic
     fun analyzeFiles(files: Collection<KtFile>, config: JsConfig): JsAnalysisResult {
-        val context = ContextForNewModule(ProjectContext(config.project), Name.special("<${config.moduleId}>"), JsPlatform.builtIns)
+        val context = ContextForNewModule(
+                ProjectContext(config.project), Name.special("<${config.moduleId}>"), JsPlatform.builtIns, platformJS
+        )
         context.setDependencies(
                 listOf(context.module) +
                 config.moduleDescriptors.map { it.data } +
