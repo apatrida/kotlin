@@ -20,8 +20,10 @@ import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.backend.common.SUSPEND_WITH_CURRENT_CONTINUATION_NAME
 import org.jetbrains.kotlin.backend.common.getBuiltInSuspendWithCurrentContinuation
 import org.jetbrains.kotlin.builtins.isBuiltinFunctionalType
+import org.jetbrains.kotlin.codegen.StackValue
 import org.jetbrains.kotlin.codegen.binding.CodegenBinding
 import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper
+import org.jetbrains.kotlin.coroutines.isSuspendLambda
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl
@@ -57,6 +59,8 @@ const val AFTER_SUSPENSION_POINT_MARKER_NAME = "afterSuspensionPoint"
 const val ACTUAL_COROUTINE_START_MARKER_NAME = "actualCoroutineStart"
 
 const val COROUTINE_LABEL_FIELD_NAME = "label"
+const val SUSPEND_FUNCTION_CREATE_METHOD_NAME = "create"
+const val DO_RESUME_METHOD_NAME = "doResume"
 
 data class ResolvedCallWithRealDescriptor(val resolvedCall: ResolvedCall<*>, val fakeContinuationExpression: KtExpression)
 
@@ -120,9 +124,18 @@ fun ResolvedCall<*>.replaceSuspensionFunctionWithRealDescriptor(
     return ResolvedCallWithRealDescriptor(newCall, thisExpression)
 }
 
-fun ResolvedCall<*>.isSuspensionPoint(bindingContext: BindingContext) =
-        bindingContext[BindingContext.ENCLOSING_SUSPEND_LAMBDA_FOR_SUSPENSION_POINT, call] != null
+fun ResolvedCall<*>.isSuspensionPointInStateMachine(bindingContext: BindingContext): Boolean {
+    if (resultingDescriptor.safeAs<FunctionDescriptor>()?.isSuspend != true) return false
+    val enclosingSuspendFunction = bindingContext[BindingContext.ENCLOSING_SUSPEND_FUNCTION_FOR_SUSPEND_FUNCTION_CALL, call] ?: return false
 
+    return enclosingSuspendFunction.isStateMachineNeeded(bindingContext)
+}
+
+fun FunctionDescriptor.isStateMachineNeeded(bindingContext: BindingContext) =
+        isSuspendLambda || containsNonTailSuspensionCalls(bindingContext)
+
+fun FunctionDescriptor.containsNonTailSuspensionCalls(bindingContext: BindingContext) =
+        bindingContext[BindingContext.CONTAINS_NON_TAIL_SUSPEND_CALLS, original] == true
 // Suspend functions have irregular signatures on JVM, containing an additional last parameter with type `Continuation<return-type>`,
 // and return type Any?
 // This function returns a function descriptor reflecting how the suspend function looks from point of view of JVM
@@ -216,8 +229,9 @@ fun createMethodNodeForSuspendWithCurrentContinuation(
     return node
 }
 
-fun CallableDescriptor?.unwrapInitialDescriptorForSuspendFunction() =
-        (this as? SimpleFunctionDescriptor)?.getUserData(INITIAL_DESCRIPTOR_FOR_SUSPEND_FUNCTION) ?: this
+@Suppress("UNCHECKED_CAST")
+fun <D : CallableDescriptor?> D.unwrapInitialDescriptorForSuspendFunction(): D =
+        (this as? SimpleFunctionDescriptor)?.getUserData(INITIAL_DESCRIPTOR_FOR_SUSPEND_FUNCTION) as D ?: this
 
 fun InstructionAdapter.loadSuspendMarker() {
     getstatic(
@@ -227,6 +241,20 @@ fun InstructionAdapter.loadSuspendMarker() {
             AsmTypes.COROUTINES_INTRINSICS.internalName,
             "getSUSPENDED",
             Type.getMethodDescriptor(AsmTypes.OBJECT_TYPE),
+            false
+    )
+}
+
+fun InstructionAdapter.invokeDoResumeWithUnit(thisName: String) {
+    // .doResume(Unit, null)
+    StackValue.putUnitInstance(this)
+
+    aconst(null)
+
+    invokevirtual(
+            thisName,
+            DO_RESUME_METHOD_NAME,
+            Type.getMethodDescriptor(AsmTypes.OBJECT_TYPE, AsmTypes.OBJECT_TYPE, AsmTypes.JAVA_THROWABLE_TYPE),
             false
     )
 }
