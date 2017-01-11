@@ -367,6 +367,7 @@ class KotlinPullUpHelper(
         else {
             member.addModifier(KtTokens.OVERRIDE_KEYWORD)
             KtTokens.VISIBILITY_MODIFIERS.types.forEach { member.removeModifier(it as KtModifierKeywordToken) }
+            member.removeModifier(KtTokens.FINAL_KEYWORD)
             (member as? KtNamedFunction)?.valueParameters?.forEach { it.dropDefaultValue() }
         }
     }
