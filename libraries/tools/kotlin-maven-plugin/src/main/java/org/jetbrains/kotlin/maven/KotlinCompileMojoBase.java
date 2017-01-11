@@ -97,6 +97,7 @@ public abstract class KotlinCompileMojoBase<A extends CommonCompilerArguments> e
 
         Map<String, MavenProject> projectReferences = project.getProjectReferences();
         if (projectReferences != null) {
+            iterateDependencies:
             for (Dependency dependency : project.getDependencies()) {
                 MavenProject sibling = projectReferences.get(dependency.getGroupId() + ":" + dependency.getArtifactId() + ":" + dependency.getVersion());
                 if (sibling != null) {
@@ -106,6 +107,7 @@ public abstract class KotlinCompileMojoBase<A extends CommonCompilerArguments> e
                             if (pluginExecution.getGoals() != null && pluginExecution.getGoals().contains("metadata")) {
                                 for (String sourceRoot : orEmpty(getRelatedSourceRoots(sibling))) {
                                     addSourceRoots(result, sourceRoot);
+                                    continue iterateDependencies;
                                 }
                             }
                         }
