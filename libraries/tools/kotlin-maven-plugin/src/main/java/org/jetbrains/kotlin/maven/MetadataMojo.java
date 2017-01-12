@@ -23,6 +23,9 @@ public class MetadataMojo extends KotlinCompileMojoBase<K2MetadataCompilerArgume
     @Parameter(defaultValue = "${project.compileClasspathElements}", required = true, readonly = true)
     public List<String> classpath;
 
+    @Parameter(defaultValue = "${project.testClasspathElements}", required = true, readonly = true)
+    public List<String> testClasspath;
+
     @Override
     protected List<String> getRelatedSourceRoots(MavenProject project) {
         return Collections.emptyList();
