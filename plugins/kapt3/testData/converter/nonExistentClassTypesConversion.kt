@@ -15,6 +15,11 @@ class Test {
     lateinit var j: () -> CDE
     lateinit var k: ABC.(List<BCD>) -> CDE
 
+    lateinit var l: ABC.BCD.EFG
+
+    val m = ABC()
+    val n = "".toString()
+
     fun f1(a: ABC): BCD? {
         return null
     }
@@ -24,4 +29,6 @@ class Test {
     fun <T> f3(a: ABC, b: Int): Long {
         return 0
     }
+
+    fun f4() = ABC()
 }

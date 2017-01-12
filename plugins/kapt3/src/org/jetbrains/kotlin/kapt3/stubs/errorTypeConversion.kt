@@ -60,7 +60,7 @@ internal fun convertKtType(
 private fun getDefaultTypeForUnknownType(converter: ClassFileToSourceStubConverter) = converter.treeMaker.FqName("error.NonExistentClass")
 
 private fun convertUserType(type: KtUserType, converter: ClassFileToSourceStubConverter): JCTree.JCExpression {
-    val qualifierExpression = type.qualifier?.let { convertUserType(type, converter) }
+    val qualifierExpression = type.qualifier?.let { convertUserType(it, converter) }
     val referencedName = type.referencedName ?: "error"
     val treeMaker = converter.treeMaker
 
