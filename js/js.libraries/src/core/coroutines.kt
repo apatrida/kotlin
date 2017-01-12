@@ -125,11 +125,13 @@ internal abstract class CoroutineImpl(private val resultContinuation: Continuati
     }
 
     override fun resume(data: Any?) {
-        this.result = data
+        result = data
         try {
-            val result = doResume()
+            result = doResume()
             if (result != CoroutineIntrinsics.SUSPENDED) {
-                resultContinuation.resume(result)
+                val data = result
+                result = CoroutineIntrinsics.SUSPENDED
+                resultContinuation.resume(data)
             }
         }
         catch (e: Throwable) {
@@ -141,9 +143,11 @@ internal abstract class CoroutineImpl(private val resultContinuation: Continuati
         state = exceptionState
         this.exception = exception
         try {
-            val result = doResume()
+            result = doResume()
             if (result != CoroutineIntrinsics.SUSPENDED) {
-                resultContinuation.resume(result)
+                val data = result
+                result = CoroutineIntrinsics.SUSPENDED
+                resultContinuation.resume(data)
             }
         }
         catch (e: Throwable) {

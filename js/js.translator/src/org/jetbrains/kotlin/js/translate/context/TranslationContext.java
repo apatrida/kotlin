@@ -399,7 +399,7 @@ public class TranslationContext {
             return alias;
         }
         if (isCoroutineLambda(descriptor.getContainingDeclaration())) {
-            JsNameRef result = new JsNameRef("$$controller$$", JsLiteral.THIS);
+            JsNameRef result = new JsNameRef("$$controller$$", JsAstUtils.stateMachineReceiver());
             MetadataProperties.setCoroutineController(result, true);
             return result;
         }
@@ -674,10 +674,6 @@ public class TranslationContext {
             descriptor = descriptor.getContainingDeclaration();
         }
         return false;
-    }
-
-    public boolean isInSuspendFunction() {
-        return declarationDescriptor instanceof FunctionDescriptor && ((FunctionDescriptor) declarationDescriptor).isSuspend();
     }
 
     @Nullable

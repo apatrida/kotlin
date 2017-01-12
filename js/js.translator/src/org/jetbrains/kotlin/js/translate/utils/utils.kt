@@ -21,11 +21,18 @@ import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+import org.jetbrains.kotlin.descriptors.impl.AnonymousFunctionDescriptor
+import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.js.backend.ast.*
+import org.jetbrains.kotlin.js.backend.ast.metadata.CoroutineMetadata
+import org.jetbrains.kotlin.js.backend.ast.metadata.coroutineMetadata
 import org.jetbrains.kotlin.js.translate.context.Namer
 import org.jetbrains.kotlin.js.translate.context.TranslationContext
 import org.jetbrains.kotlin.js.translate.reference.ReferenceTranslator
 import org.jetbrains.kotlin.js.translate.utils.TranslationUtils.simpleReturnFunction
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.types.KotlinType
 
@@ -120,3 +127,44 @@ fun TranslationContext.addAccessorsToPrototype(
     val defineProperty = JsAstUtils.defineProperty(prototypeRef, propertyName.ident, literal, program())
     addDeclarationStatement(defineProperty.makeStmt())
 }
+
+fun FunctionDescriptor.requiresStateMachineTransformation(context: TranslationContext): Boolean =
+        this is AnonymousFunctionDescriptor ||
+        context.bindingContext()[BindingContext.CONTAINS_NON_TAIL_SUSPEND_CALLS, this] == true
+
+fun JsFunction.fillCoroutineMetadata(
+        context: TranslationContext,
+        descriptor: FunctionDescriptor,
+        hasController: Boolean, isLambda: Boolean
+) {
+    if (!descriptor.requiresStateMachineTransformation(context)) return
+
+    val suspendPropertyDescriptor = context.currentModule.getPackage(COROUTINE_INTRINSICS_FQ_NAME.parent())
+            .memberScope.getContributedClassifier(COROUTINE_INTRINSICS_FQ_NAME.shortName(), NoLookupLocation.FROM_BACKEND)
+            .let { (it as ClassDescriptor) }.unsubstitutedMemberScope
+            .getContributedVariables(SUSPEND_NAME, NoLookupLocation.FROM_BACKEND).first()
+
+    val coroutineBaseClassRef = ReferenceTranslator.translateAsTypeReference(TranslationUtils.getCoroutineBaseClass(context), context)
+
+    fun getCoroutinePropertyName(id: String) =
+            context.getNameForDescriptor(TranslationUtils.getCoroutineProperty(context, id))
+
+    coroutineMetadata = CoroutineMetadata(
+            doResumeName = context.getNameForDescriptor(TranslationUtils.getCoroutineDoResumeFunction(context)),
+            resumeName = context.getNameForDescriptor(TranslationUtils.getCoroutineResumeFunction(context)),
+            suspendObjectRef = ReferenceTranslator.translateAsValueReference(suspendPropertyDescriptor, context),
+            baseClassRef = coroutineBaseClassRef,
+            stateName = getCoroutinePropertyName("state"),
+            exceptionStateName = getCoroutinePropertyName("exceptionState"),
+            finallyPathName = getCoroutinePropertyName("finallyPath"),
+            resultName = getCoroutinePropertyName("result"),
+            exceptionName = getCoroutinePropertyName("exception"),
+            facadeName = getCoroutinePropertyName("facade"),
+            hasController = hasController,
+            isLambda = isLambda,
+            hasReceiver = descriptor.dispatchReceiverParameter != null
+    )
+}
+
+private val SUSPEND_NAME = Name.identifier("SUSPENDED")
+private val COROUTINE_INTRINSICS_FQ_NAME = FqName("kotlin.coroutines.CoroutineIntrinsics")

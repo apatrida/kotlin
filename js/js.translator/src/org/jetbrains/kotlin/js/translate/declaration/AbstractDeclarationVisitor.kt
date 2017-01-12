@@ -16,16 +16,16 @@
 
 package org.jetbrains.kotlin.js.translate.declaration
 
-import org.jetbrains.kotlin.js.backend.ast.JsExpression
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
+import org.jetbrains.kotlin.js.backend.ast.JsExpression
 import org.jetbrains.kotlin.js.translate.context.TranslationContext
 import org.jetbrains.kotlin.js.translate.general.Translation
 import org.jetbrains.kotlin.js.translate.general.TranslatorVisitor
-import org.jetbrains.kotlin.js.translate.utils.BindingUtils
-import org.jetbrains.kotlin.js.translate.utils.TranslationUtils
+import org.jetbrains.kotlin.js.translate.reference.ReferenceTranslator
+import org.jetbrains.kotlin.js.translate.utils.*
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.resolve.descriptorUtil.isExtensionProperty
 
@@ -93,9 +93,22 @@ abstract class AbstractDeclarationVisitor : TranslatorVisitor<Unit>()  {
             expression: KtDeclarationWithBody,
             context: TranslationContext
     ): JsExpression {
-        val innerContext = context.newDeclaration(descriptor)
-        innerContext.getInnerNameForDescriptor(descriptor)
         val function = context.getFunctionObject(descriptor)
+        var innerContext = context.newDeclaration(descriptor)
+        if (descriptor.isSuspend) {
+            if (descriptor.requiresStateMachineTransformation(context)) {
+                function.fillCoroutineMetadata(context, descriptor, hasController = false, isLambda = false)
+                innerContext = innerContext.innerContextWithAliased(descriptor, JsAstUtils.stateMachineReceiver())
+            }
+            else {
+                val continuationRef = ReferenceTranslator.translateAsValueReference(
+                        innerContext.continuationParameterDescriptor!!, innerContext)
+                innerContext = innerContext.innerContextWithAliased(descriptor, continuationRef)
+            }
+        }
+
+        innerContext.getInnerNameForDescriptor(descriptor)
+
         return Translation.functionTranslator(expression, innerContext, function).translateAsMethod()
     }
 
