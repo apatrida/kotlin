@@ -49,7 +49,7 @@ class JpsKotlinCompilerRunner : KotlinCompilerRunner<JpsCompilerEnvironment>() {
         val arguments = mergeBeans(commonArguments, k2jvmArguments)
         setupK2JvmArguments(moduleFile, arguments)
         val additionalArguments = compilerSettings.additionalArguments.split(" ").toTypedArray()
-        parseArguments(additionalArguments, arguments)
+        //parseArguments(additionalArguments, arguments)
 
         runCompiler(K2JVM_COMPILER, arguments, environment)
     }
@@ -66,7 +66,7 @@ class JpsKotlinCompilerRunner : KotlinCompilerRunner<JpsCompilerEnvironment>() {
         val arguments = mergeBeans(commonArguments, k2jsArguments)
         setupK2JsArguments(outputFile, sourceFiles, libraryFiles, arguments)
         val additionalArguments = compilerSettings.additionalArguments.split(" ").toTypedArray()
-        parseArguments(additionalArguments, arguments)
+        //parseArguments(additionalArguments, arguments)
 
         runCompiler(K2JS_COMPILER, arguments, environment)
     }

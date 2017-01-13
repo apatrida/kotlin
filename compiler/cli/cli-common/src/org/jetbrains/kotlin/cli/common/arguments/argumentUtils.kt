@@ -23,25 +23,7 @@ import java.lang.reflect.Modifier
 import java.util.*
 
 fun <A : CommonCompilerArguments> parseArguments(args: Array<String>, arguments: A) {
-    val unparsedArgs = try {
-        Args.parse(arguments, args, false)
-    }
-    catch (e: NoSuchMethodError) {
-        // hack for older version (used on CI with standalone jps)
-        val unknownArgs = arrayListOf<String>()
-
-        for (arg in args) {
-            try {
-                Args.parse(arguments, arrayOf(arg))
-            }
-            catch (e: IllegalArgumentException) {
-                unknownArgs.add(arg)
-            }
-        }
-
-        unknownArgs
-    }
-
+    val unparsedArgs = Args.parse(arguments, args, false)
     val (unknownExtraArgs, unknownArgs) = unparsedArgs.partition { it.startsWith("-X") }
     arguments.unknownExtraFlags = unknownExtraArgs
     arguments.freeArgs = unknownArgs
